@@ -419,7 +419,8 @@ __global__ void reconstruct_kernel
             for (int j = 0; j < 4; j++) dq[j] = __hmul2(dq[j], qs_h2);
             half* dqh = (half*) dq;
             // b_ is pointer of half, bq is pointer of half2.
-            // This store is a scattered store (?)
+            // This store is coalesced: perm[lk++] is same for every thread
+            // n is the offset with threadIdx.x
             for (int j = 0; j < 8; j++) b_.set(perm[lk++], n, dqh[j]);
         }
         k += 32;
