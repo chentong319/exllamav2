@@ -22,11 +22,11 @@ __forceinline__ __device__ void shuffle_2bit_16
     #pragma unroll
     for (int i = 0; i < 8; i++)
     {
-        uint32_t qa0 = qa & 0x03;
-        uint32_t qa1 = (qa & 0x0c) >> 2;
-        qa >>= 4;
-        qb |= (qa1 << (i * 2 + 16));
-        qb |= (qa0 << (i * 2));
+        uint32_t qa0 = qa & 0x03;  // get bit 0 and 1
+        uint32_t qa1 = (qa & 0x0c) >> 2;  // get bit bit 2 and 3 and shift to to 0 and 1
+        qa >>= 4;  // the first 4 bits are processed and shift output
+        qb |= (qa1 << (i * 2 + 16));  // put qa1 to the bit 16 and 17, 18 and 19, ...
+        qb |= (qa0 << (i * 2));       // put qa0 to bit 0 and 1, 3 and 4, ...
     }
     q[0] = qb;
 }
@@ -39,7 +39,7 @@ __forceinline__ __device__ void dequant_2bit_16
 )
 {
     const uint32_t c0 = 0x64006400;
-    const half y4_  = __float2half_rn(1.0f /  4.0f);
+    const half y4_  = __float2half_rn(1.0f /  4.0f); // scale for dequant
     const half y16_ = __float2half_rn(1.0f / 16.0f);
     const half y64_ = __float2half_rn(1.0f / 64.0f);
     const half2 y4  = __halves2half2(y4_,  y4_);

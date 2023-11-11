@@ -16,6 +16,11 @@ __forceinline__ __device__ void shuffle_4bit_8
     int stride
 )
 {
+
+    // supose q[0] contain value a0, a1, ..., a7, each ai is a 4bit value
+    // the result in q[0] will be a0, a2, a4, a6, a1, a3, a5, a7
+    // When converted to half type, a0 and a1 will form a half2 vector for SIMD operation.
+    // similar to a2n and a2n+1 with just shifting of n bit
     uint32_t qa = q[0];
     uint32_t qb = 0;
 
@@ -51,8 +56,13 @@ __forceinline__ __device__ void dequant_4bit_8
     half2_uint32 q1((qa & 0x00f000f0) | c0); // half2(q[ 2], q[ 3]) * 16 + 1024
     qa >>= 8;
     half2_uint32 q2((qa & 0x000f000f) | c0); // half2(q[ 4], q[ 5])      + 1024
-    half2_uint32 q3((qa & 0x00f000f0) | c0); // half2(q[ 6], q[ 7]) * 16 + 1024
+    half2_uint32 q3((qa & 0x00f000f0) | c0); // half2(q[ 6], q[ 7]) * 16 + 1024 
 
+    // need reference of F16 format. 0x6400 is 0110 0100 0000 0000
+    // the exponent part is 11001,the value is 11001-01111 = 01010 = dec 10
+    // the fraction part has 10 bits. they are 0 and q[0], or q[2]*16
+    // the bits in q0, when interpreted as half, its value is 2^10*(1+q[0]/1024)
+    // That's the reason for the comment.
     dq[0] = __hadd2(q0.as_half2, z1);
     dq[1] = __hfma2(q1.as_half2, y16, z16);
     dq[2] = __hadd2(q2.as_half2, z1);

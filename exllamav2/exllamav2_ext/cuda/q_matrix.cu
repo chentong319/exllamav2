@@ -288,7 +288,7 @@ __global__ void reconstruct_kernel
     const int size_n,
     const int groupsize,
     const int groups,
-    half* __restrict__ b,
+    half* __restrict__ b, // output
     const int rows_8,
     const int rows_6,
     const int rows_5,
@@ -333,6 +333,9 @@ __global__ void reconstruct_kernel
     qk += pre_rows_3 / 32 * 3;
     qk += pre_rows_2 / 32 * 2;
 
+    // not sure why the pointer is called b_ptr, which has nothing to do with the parameter 'b'
+    // This pointer is the points to the input data to be dequantized for current thread to work on
+    // it will increase by size_n.
     const uint32_t* b_ptr = b_q_weight + qk * size_n + n;
 
     half qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]);
@@ -399,14 +402,25 @@ __global__ void reconstruct_kernel
 
     while (k < rows_4 && k < end_k)
     {
+        // when entering the nextgroup, update the scale and scale_max.
+        // It assumed that the group boundary is at the multiply of 32 of rows.
+        // since the 
+        // The value of group is the same for the whole block.
+        // load of b_q_scale is coalesced and b_q_scale_max is the same
         if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += groupsize; qs_h2 = __halves2half2(qs_h, qs_h); }
         for (int p = 0; p < 4; p++)
         {
             half2 dq[4];
+            // 4 bit will be dequantized into 16.
+            // There are 8 weight in one uint input, and need 4 half2 to store the 8 half result
             uint32_t q_0 = *b_ptr; b_ptr += size_n;
             dequant_4bit_8(q_0, dq, size_n);
+            // Mulitple by q_b_scale for this data
             for (int j = 0; j < 4; j++) dq[j] = __hmul2(dq[j], qs_h2);
             half* dqh = (half*) dq;
+            // b_ is pointer of half, bq is pointer of half2.
+            // This store is coalesced: perm[lk++] is same for every thread
+            // n is the offset with threadIdx.x
             for (int j = 0; j < 8; j++) b_.set(perm[lk++], n, dqh[j]);
         }
         k += 32;
